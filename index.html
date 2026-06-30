@@ -155,12 +155,6 @@
       </div>
     </div>
 
-    <div class="field">
-      <label for="seed">Seed (optional)</label>
-      <input type="text" id="seed" placeholder="Leave blank for a new random draw" />
-      <div class="sub">Use the same seed and totals to reproduce an identical draw (useful for records).</div>
-    </div>
-
     <button class="btn-primary" id="generate">Generate sample</button>
     <div id="message"></div>
   </div>
@@ -237,7 +231,6 @@
     const total = parseInt($("total").value, 10);
     const primaryN = parseInt($("primary").value, 10);
     const backupN = parseInt($("backup").value, 10);
-    let seedInput = $("seed").value.trim();
 
     // Validation
     if (!Number.isInteger(total) || total < 1) {
@@ -260,14 +253,14 @@
       return;
     }
 
-    // Seed: use given one, or make a fresh random seed and show it
-    let generatedSeed = false;
-    if (!seedInput) {
-      seedInput = String(Date.now()) + "-" + Math.floor(Math.random() * 1e9);
-      generatedSeed = true;
-    }
-    const seedFn = xmur3(seedInput);
-    const rand = mulberry32(seedFn());
+    // Seed from today's date, so repeating the draw on the same day (with the
+    // same totals) gives the same households.
+    const now = new Date();
+    const seedInput =
+      now.getFullYear() + "-" +
+      String(now.getMonth() + 1).padStart(2, "0") + "-" +
+      String(now.getDate()).padStart(2, "0");
+    const rand = mulberry32(xmur3(seedInput)());
 
     // Fisher-Yates shuffle of [1..total]
     const pool = new Array(total);
@@ -287,13 +280,8 @@
     $("primaryCount").textContent = `${primary.length} of ${total}`;
     $("backupCount").textContent = `${backup.length} backups`;
 
-    const stamp = lastDraw.when.toLocaleString();
     $("meta").innerHTML =
-      `Total households: <strong>${total}</strong> &middot; Seed: <code>${escapeHtml(seedInput)}</code>` +
-      (generatedSeed ? " (auto-generated)" : "") +
-      `<br>Generated: ${stamp}. Record the seed and totals to reproduce this exact draw.`;
-
-    if (generatedSeed) $("seed").value = seedInput;
+      `Total households: <strong>${total}</strong><br>Generated: ${lastDraw.when.toLocaleString()}`;
 
     showMessage("", "");
     resultsEl.style.display = "block";
@@ -326,7 +314,7 @@
 
   // --- Events ---
   $("generate").addEventListener("click", generate);
-  [$("total"), $("primary"), $("backup"), $("seed")].forEach((el) =>
+  [$("total"), $("primary"), $("backup")].forEach((el) =>
     el.addEventListener("keydown", (e) => { if (e.key === "Enter") generate(); })
   );
 
@@ -341,9 +329,8 @@
   $("copyAll").addEventListener("click", function () {
     if (!lastDraw) return;
     const text =
-      `Primary sample (${lastDraw.primary.length}): ${lastDraw.primary.join(", ")}\n` +
-      `Backups (${lastDraw.backup.length}): ${lastDraw.backup.join(", ")}\n` +
-      `Total households: ${lastDraw.total} | Seed: ${lastDraw.seed} | ${lastDraw.when.toLocaleString()}`;
+      `Primary sample: ${lastDraw.primary.join(", ")}\n` +
+      `Backups: ${lastDraw.backup.join(", ")}`;
     copyText(text).then(() => flash(this, "Copied!"));
   });
   $("downloadCsv").addEventListener("click", function () {
